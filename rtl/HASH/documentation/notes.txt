@@ -1,0 +1,3 @@
+iverilog -g2012 -Wall -s tb_hash_engine -o sim.out ../sha256_core.v ../sha512_core.v ../sha3_256_core.v ../hash_engine.v tb_hash_engine.v
+vvp sim.out
+
