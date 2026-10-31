@@ -1,0 +1,14 @@
+# Generic synthesizability / area sanity check (no PDK).  Run from the project root:
+# Hierarchical (not flattened): flattening the whole design needs more than 4 GB of RAM with the BA table.
+#   yosys -q -l synth/yosys.log synth/yosys_synth.ys
+# The non-SIM branch of trng.v (ring-oscillator inverter chains) contains
+# intentional combinational loops; yosys `check` will report them. For tape-out
+# replace ring_osc_bank with a hard macro / dont_touch cells (see README).
+read_verilog -sv rtl/sha256_core.v rtl/sha1_core.v rtl/sha512_core.v rtl/keccak_core.v rtl/hash_engine.v rtl/hash_core.v rtl/aes128_core.v rtl/modmul_serial.v \
+                 rtl/ecc_ucode.v rtl/ba_recoder.v rtl/ecc_core.v rtl/ecc_engine.v rtl/crypto_accel.v \
+                 rtl/key_mgmt_unit.v rtl/trng.v rtl/controller_fsm.v rtl/sc_crypto_top.v
+hierarchy -check -top sc_crypto_top
+proc; opt -purge
+check
+synth -top sc_crypto_top
+stat
