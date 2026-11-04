@@ -1,0 +1,137 @@
+\documentclass[11pt, a4paper]{article}
+\usepackage[a4paper, margin=2.5cm]{geometry}
+\usepackage{fontspec}
+\usepackage[english, bidi=basic, provide=*]{babel}
+\babelprovide[import, onchar=ids fonts]{english}
+\babelfont{rm}{Noto Sans}
+\usepackage{amsmath, amssymb, booktabs}
+\usepackage{hyperref}
+
+\title{\textbf{Formal Mathematical Specifications of Cryptographic Hardware Cores}}
+\author{Hardware Architecture Documentation}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This document provides the formal mathematical specifications corresponding to the Verilog hardware implementations of three cryptographic primitives: the SHA-256 compression core, the SHA-512 compression core, and the Keccak-f[1600] sponge core (SHA-3). Each core is modeled mathematically over its respective algebraic ring, detailing bitwise operators, message schedule expansions, round-based state transitions, and finalization steps.
+\end{abstract}
+
+\section{SHA-256 Compression Core}
+All arithmetic operations for the SHA-256 core are defined over the ring $\mathbb{Z}_{2^{32}}$, representing unsigned 32-bit addition modulo $2^{32}$.
+
+\subsection{Bitwise Functions and Operators}
+Let $x, y, z \in \{0, 1\}^{32}$.
+\begin{itemize}
+    \item \textbf{Right Rotation:} $\operatorname{ROTR}^n(x) = (x \gg n) \lor (x \ll (32 - n))$
+    \item \textbf{Right Shift:} $\operatorname{SHR}^n(x) = x \gg n$
+    \item \textbf{Message Schedule Auxiliary Functions:}
+    \begin{align*}
+        \sigma_0(x) &= \operatorname{ROTR}^7(x) \oplus \operatorname{ROTR}^{18}(x) \oplus \operatorname{SHR}^3(x) \\
+        \sigma_1(x) &= \operatorname{ROTR}^{17}(x) \oplus \operatorname{ROTR}^{19}(x) \oplus \operatorname{SHR}^{10}(x)
+    \end{align*}
+    \item \textbf{Compression Auxiliary Functions:}
+    \begin{align*}
+        \Sigma_0(x) &= \operatorname{ROTR}^2(x) \oplus \operatorname{ROTR}^{13}(x) \oplus \operatorname{ROTR}^{22}(x) \\
+        \Sigma_1(x) &= \operatorname{ROTR}^6(x) \oplus \operatorname{ROTR}^{11}(x) \oplus \operatorname{ROTR}^{25}(x) \\
+        \operatorname{Ch}(x, y, z) &= (x \land y) \oplus (\neg x \land z) \\
+        \operatorname{Maj}(x, y, z) &= (x \land y) \oplus (x \land z) \oplus (y \land z)
+    \end{align*}
+\end{itemize}
+
+\subsection{Message Schedule Expansion}
+Given a padded 512-bit block $M = M^{(0)} \parallel M^{(1)} \parallel \dots \parallel M^{(15)}$ where each $M^{(i)} \in \{0, 1\}^{32}$, for round index $t \in \{0, 1, \dots, 63\}$, the expanded word $W_t$ is defined as:
+\begin{equation}
+    W_t = \begin{cases} 
+    M^{(t)}, & 0 \le t \le 15 \\
+    \left( \sigma_1(W_{t-2}) + W_{t-7} + \sigma_0(W_{t-15}) + W_{t-16} \right) \pmod{2^{32}}, & 16 \le t \le 63 
+    \end{cases}
+\end{equation}
+
+\subsection{Round Function State Update}
+Let the working state at round $t$ be $V_t = (a_t, b_t, c_t, d_t, e_t, f_t, g_t, h_t) \in (\{0, 1\}^{32})^8$.
+
+\noindent\textbf{Initialization ($t = 0$):} $V_0 = H^{(i-1)}$, selected via the chaining configuration (`cont` flag or initial hash vector $H_{256}$).
+
+\noindent\textbf{State Transition ($t \to t+1$ for $t = 0 \dots 63$):}
+\begin{align*}
+    T_1^{(t)} &= \left( h_t + \Sigma_1(e_t) + \operatorname{Ch}(e_t, f_t, g_t) + K_t + W_t \right) \pmod{2^{32}} \\
+    T_2^{(t)} &= \left( \Sigma_0(a_t) + \operatorname{Maj}(a_t, b_t, c_t) \right) \pmod{2^{32}}
+\end{align*}
+The register updates follow:
+\begin{align*}
+    a_{t+1} &= T_1^{(t)} + T_2^{(t)} \pmod{2^{32}}, \quad b_{t+1} = a_t, \quad c_{t+1} = b_t, \quad d_{t+1} = c_t \\
+    e_{t+1} &= d_t + T_1^{(t)} \pmod{2^{32}}, \quad f_{t+1} = e_t, \quad g_{t+1} = f_t, \quad h_{t+1} = g_t
+\end{align*}
+
+\subsection{Finalization \& Digest Computation}
+After 64 rounds, the output digest $H^{(i)}$ is computed by modular addition of the final state variables with the initial chaining values $H^{(i-1)}$:
+\begin{equation}
+    H_j^{(i)} = H_j^{(i-1)} + \text{state\_variable}_{64} \pmod{2^{32}}, \quad \text{for } j \in \{0, \dots, 7\}
+\end{equation}
+
+\section{SHA-512 Compression Core}
+All arithmetic operations for the SHA-512 core are defined over the ring $\mathbb{Z}_{2^{64}}$, representing unsigned 64-bit addition modulo $2^{64}$.
+
+\subsection{Bitwise Functions and Operators}
+Let $x, y, z \in \{0, 1\}^{64}$.
+\begin{itemize}
+    \item \textbf{Right Rotation:} $\operatorname{ROTR}^n(x) = (x \gg n) \lor (x \ll (64 - n))$
+    \item \textbf{Message Schedule Auxiliary Functions:}
+    \begin{align*}
+        \sigma_0(x) &= \operatorname{ROTR}^1(x) \oplus \operatorname{ROTR}^8(x) \oplus \operatorname{SHR}^7(x) \\
+        \sigma_1(x) &= \operatorname{ROTR}^{19}(x) \oplus \operatorname{ROTR}^{61}(x) \oplus \operatorname{SHR}^6(x)
+    \end{align*}
+    \item \textbf{Compression Auxiliary Functions:}
+    \begin{align*}
+        \Sigma_0(x) &= \operatorname{ROTR}^{28}(x) \oplus \operatorname{ROTR}^{34}(x) \oplus \operatorname{ROTR}^{39}(x) \\
+        \Sigma_1(x) &= \operatorname{ROTR}^{14}(x) \oplus \operatorname{ROTR}^{18}(x) \oplus \operatorname{ROTR}^{41}(x) \\
+        \operatorname{Ch}(x, y, z) &= (x \land y) \oplus (\neg x \land z) \\
+        \operatorname{Maj}(x, y, z) &= (x \land y) \oplus (x \land z) \oplus (y \land z)
+    \end{align*}
+\end{itemize}
+
+\subsection{Message Schedule and Round Updates}
+Given a 1024-bit block $M$, words $W_t$ are expanded for $t \in \{0, \dots, 79\}$ identically to SHA-256 but modulo $2^{64}$. The round update equations mirror SHA-512 specifications operating over 64-bit words with 80 total rounds.
+
+\section{Keccak-f[1600] Sponge Core (SHA-3)}
+The internal state is represented as a 3D array $A[x, y][z]$ or a $5 \times 5$ grid of 64-bit lanes ($S \in \{0, 1\}^{1600}$).
+
+\subsection{State Absorption Phase}
+When a block is absorbed, the state is conditionally initialized and XOR-ed with the rate-sized input block $M$:
+\begin{equation}
+    S^{(0)} = \begin{cases} 
+    0^{1600}, & \text{if } \text{init} = 1 \\
+    S_{\text{prev}}, & \text{if } \text{init} = 0
+    \end{cases}
+\end{equation}
+For each byte index $i$ up to the rate size $\text{bs}$:
+\begin{equation}
+    S_{\text{byte}, i} \leftarrow S_{\text{byte}, i}^{(0)} \oplus M_{\text{byte}, i}
+\end{equation}
+
+\subsection{Keccak-f[1600] Round Permutation}
+Each round consists of five transformations executed sequentially over 24 rounds ($r \in \{0, \dots, 23\}$):
+\begin{enumerate}
+    \item \textbf{Theta ($\theta$):} Parity calculation and diffusion across columns:
+    \begin{align*}
+        C[x] &= \bigoplus_{y=0}^{4} A[x, y], \quad D[x] = C[(x-1) \bmod 5] \oplus \operatorname{ROTL}^1\left(C[(x+1) \bmod 5]\right) \\
+        A[x, y] &\leftarrow A[x, y] \oplus D[x]
+    \end{align*}
+    \item \textbf{Rho ($\rho$) \& Pi ($\pi$):} Lane offset relocation and rotation.
+    \item \textbf{Chi ($\chi$):} Non-linear row-wise combination:
+    \begin{equation*}
+        A[x, y] = B[x, y] \oplus \left(\neg B[(x+1) \bmod 5, y] \land B[(x+2) \bmod 5, y]\right)
+    \end{equation*}
+    \item \textbf{Iota ($\iota$):} Round constant XOR into lane $A[0, 0]$ using $\operatorname{RC}(r)$.
+\end{enumerate}
+
+\subsection{Digest Extraction}
+Upon completion of 24 rounds, the 256-bit digest is extracted from the lower 256 bits of the final state vector:
+\begin{equation}
+    \text{Digest} = S^{(24)}[255 : 0]
+\end{equation}
+
+\end{document}

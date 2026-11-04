@@ -1,0 +1,23 @@
+stateDiagram-v2
+    [*] --> S_IDLE
+
+    %% S_IDLE Transitions
+    S_IDLE --> S_IDLE : init_cmd / go (error or config)
+    S_IDLE --> S_CHK : go (valid chunk)
+
+    %% S_CHK Transitions
+    S_CHK --> S_COMP : fill >= BS
+    S_CHK --> S_PAD : fin_q && !pstage
+    S_CHK --> S_PAD2 : fin_q && pstage
+    S_CHK --> S_IDLE : !fin_q (chunk done)
+
+    %% S_COMP & S_CWAIT Transitions
+    S_COMP --> S_CWAIT : (unconditional / start core)
+    S_CWAIT --> S_CWAIT : !core_done
+    S_CWAIT --> S_CHK : core_done && !last
+    S_CWAIT --> S_OUT : core_done && last
+
+    %% Padding & Output Transitions
+    S_PAD --> S_COMP : (unconditional)
+    S_PAD2 --> S_COMP : (unconditional)
+    S_OUT --> S_IDLE : (unconditional / complete)
