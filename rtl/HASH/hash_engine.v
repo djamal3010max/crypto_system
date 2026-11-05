@@ -85,8 +85,8 @@ module hash_engine (
 
   sha3_256_core u_kec (
       .clk(clk), .rst_n(rst_n), .start(kec_start),
-      .init(first),
-      .block(buf_r[BW-1:BW-1088]),
+      .init(first), .bs(9'd136),
+      .block({buf_r[BW-1:BW-1088],64'd0}),
       .busy(kec_busy), .done(kec_done), .digest(kec_dig)
   );
 
